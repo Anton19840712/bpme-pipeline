@@ -86,23 +86,6 @@ public sealed class Program
 
         logger.LogInformation("Consumer started. Log file path: {Path}", logPath);
 
-        if (settings.Control != null && !string.IsNullOrWhiteSpace(settings.Control.PauseFilePath))
-        {
-            _ = Task.Run(async () =>
-            {
-                while (true)
-                {
-                    if (File.Exists(settings.Control.PauseFilePath))
-                    {
-                        logger.LogWarning("Pause file detected. Consumer will остановиться. Path={Path}", settings.Control.PauseFilePath);
-                        Environment.Exit(0);
-                    }
-
-                    await Task.Delay(TimeSpan.FromSeconds(1));
-                }
-            });
-        }
-
         orchestrator.RegisterHandlers();
 
         await Task.Delay(Timeout.Infinite);
