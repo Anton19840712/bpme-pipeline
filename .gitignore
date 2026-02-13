@@ -1,0 +1,17 @@
+# Build outputs
+**/bin/
+**/obj/
+
+# User-specific files
+.vs/
+
+# Logs
+bpme.log
+
+# Docker data
+docker/minio/data/
+docker/ftp/upload/
+
+# OS files
+Thumbs.db
+Desktop.ini

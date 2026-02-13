@@ -1,0 +1,46 @@
+services:
+  rabbitmq:
+    image: rabbitmq:3-management
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: user
+      RABBITMQ_DEFAULT_PASS: pass
+
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    volumes:
+      - ./docker/minio/data:/data
+
+  minio-init:
+    image: minio/mc:latest
+    depends_on:
+      - minio
+    entrypoint: /bin/sh
+    command: -c "sleep 3; mc alias set local http://minio:9000 minioadmin minioadmin; mc mb -p local/bpme; mc policy set public local/bpme"
+
+  ftp:
+    image: fauria/vsftpd:latest
+    ports:
+      - "21:21"
+      - "21100-21110:21100-21110"
+    environment:
+      FTP_USER: admin
+      FTP_PASS: admin
+      WRITE_ENABLE: "YES"
+      ALLOW_WRITEABLE_CHROOT: "YES"
+      PASV_ADDRESS: 127.0.0.1
+      PASV_MIN_PORT: 21100
+      PASV_MAX_PORT: 21110
+      REVERSE_LOOKUP_ENABLE: "NO"
+      PASV_ADDR_RESOLVE: "NO"
+    volumes:
+      - ./docker/ftp/upload:/home/vsftpd/admin
