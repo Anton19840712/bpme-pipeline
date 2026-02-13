@@ -8,6 +8,9 @@
 # Logs
 bpme.log
 
+# Large local test files
+assets/output_csv_full.csv
+
 # Docker data
 docker/minio/data/
 docker/ftp/upload/
