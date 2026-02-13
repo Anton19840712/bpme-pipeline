@@ -296,14 +296,35 @@ app.MapPost("/admin/consumer/resume", () =>
 app.Run();
 
 // Вспомогательные типы.
+/// <summary>
+/// Запрос на просмотр сообщений в очереди.
+/// </summary>
 public sealed record RabbitPeekRequest(string Queue, int Count);
+
+/// <summary>
+/// Запрос на публикацию события.
+/// </summary>
 public sealed record RabbitPublishRequest(string Topic, Dictionary<string, string>? Payload);
+
+/// <summary>
+/// Запрос на загрузку файла в FTP.
+/// </summary>
 public sealed record FtpUploadRequest(IFormFile File);
+
+/// <summary>
+/// Запрос на загрузку файла в S3.
+/// </summary>
 public sealed record S3UploadRequest(IFormFile File, string Key);
 
+/// <summary>
+/// Вспомогательные методы Admin API.
+/// </summary>
 internal static class AdminApiHelpers
 {
     // FTP helpers.
+    /// <summary>
+    /// Создать FTP клиента.
+    /// </summary>
     internal static FtpClient CreateFtpClient(PipelineSettings settings)
     {
         var ftp = settings.FtpConnection;
@@ -336,6 +357,9 @@ internal static class AdminApiHelpers
         return client;
     }
 
+    /// <summary>
+    /// Нормализовать базовый путь FTP.
+    /// </summary>
     internal static string NormalizeBasePath(PipelineSettings settings)
     {
         var basePath = settings.FtpDetection.SearchPath?.Trim() ?? string.Empty;
@@ -355,6 +379,9 @@ internal static class AdminApiHelpers
         return basePath;
     }
 
+    /// <summary>
+    /// Построить путь файла относительно базового каталога.
+    /// </summary>
     internal static string BuildRemotePath(PipelineSettings settings, string name)
     {
         var basePath = settings.FtpDetection.SearchPath?.Trim() ?? string.Empty;
@@ -373,6 +400,9 @@ internal static class AdminApiHelpers
     }
 
 
+    /// <summary>
+    /// Получить список файлов в FTP каталоге.
+    /// </summary>
     internal static List<string> FtpList(PipelineSettings settings)
     {
         using var client = CreateFtpClient(settings);
@@ -386,6 +416,9 @@ internal static class AdminApiHelpers
             .ToList();
     }
 
+    /// <summary>
+    /// Загрузить файл в FTP.
+    /// </summary>
     internal static void FtpUpload(PipelineSettings settings, string remoteName, Stream content)
     {
         using var client = CreateFtpClient(settings);
@@ -401,6 +434,9 @@ internal static class AdminApiHelpers
         }
     }
 
+    /// <summary>
+    /// Скачать файл из FTP.
+    /// </summary>
     internal static Stream FtpDownload(PipelineSettings settings, string remoteName)
     {
         var ms = new MemoryStream();
@@ -415,6 +451,9 @@ internal static class AdminApiHelpers
         return ms;
     }
 
+    /// <summary>
+    /// Удалить файл из FTP.
+    /// </summary>
     internal static void FtpDelete(PipelineSettings settings, string remoteName)
     {
         using var client = CreateFtpClient(settings);
@@ -426,6 +465,9 @@ internal static class AdminApiHelpers
     }
 
     // Rabbit helpers.
+    /// <summary>
+    /// Выполнить GET к RabbitMQ Management API.
+    /// </summary>
     internal static async Task<List<JsonElement>> RabbitApiGetAsync(PipelineSettings settings, string path, IHttpClientFactory httpFactory)
     {
         var host = settings.RabbitMq.Host == "127.0.0.1" ? "127.0.0.1" : settings.RabbitMq.Host;
@@ -439,6 +481,9 @@ internal static class AdminApiHelpers
         return doc.RootElement.EnumerateArray().ToList();
     }
 
+    /// <summary>
+    /// Выполнить POST к RabbitMQ Management API.
+    /// </summary>
     internal static async Task<string> RabbitApiPostAsync(PipelineSettings settings, string path, object payload, IHttpClientFactory httpFactory)
     {
         var host = settings.RabbitMq.Host == "127.0.0.1" ? "127.0.0.1" : settings.RabbitMq.Host;

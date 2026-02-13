@@ -1,12 +1,12 @@
 namespace Bpme.Application.Abstractions;
 
 /// <summary>
-/// Обработчик шага, который можно отключить через конфигурацию.
+/// Маркер для опциональных шагов.
 /// </summary>
 public interface IOptionalStepHandler
 {
     /// <summary>
-    /// Признак включения обработчика.
+    /// Включён ли шаг.
     /// </summary>
     bool Enabled { get; }
 }

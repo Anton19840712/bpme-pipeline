@@ -1,8 +1,8 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
-using System.Text.Json;
 using System.Text.Encodings.Web;
+using System.Text.Json;
 using Bpme.Application.Abstractions;
 using Bpme.Application.Settings;
 using Bpme.Domain.Abstractions;
@@ -111,6 +111,10 @@ public sealed class ParseCsvHandler : IStepHandler
         await _bus.PublishAsync(new PipelineEvent(TopicTag.From(_topics.ParsingTopic), evt.CorrelationId, payload), ct);
         _logger.LogInformation("Parse done. rows={Rows} s3={S3} duplicate={Duplicate}", rows.Count, jsonKey, isDuplicate);
     }
+
+    /// <summary>
+    /// Нормализовать значение ячейки CSV.
+    /// </summary>
     private static string CleanCsvCell(string value)
     {
         var cell = value?.Trim() ?? string.Empty;
@@ -122,5 +126,3 @@ public sealed class ParseCsvHandler : IStepHandler
         return cell.Replace("\"\"", "\"").Trim();
     }
 }
-
-

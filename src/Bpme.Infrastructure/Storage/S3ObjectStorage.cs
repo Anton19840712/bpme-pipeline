@@ -103,6 +103,9 @@ public sealed class S3ObjectStorage : IObjectStorage
         _logger.LogInformation("S3 delete: {Key}", key);
     }
 
+    /// <summary>
+    /// Убедиться, что bucket существует.
+    /// </summary>
     private async Task EnsureBucketAsync(CancellationToken ct)
     {
         var exists = await AmazonS3Util.DoesS3BucketExistV2Async(_client, _bucket);

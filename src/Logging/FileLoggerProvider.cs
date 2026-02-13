@@ -30,5 +30,7 @@ public sealed class FileLoggerProvider : ILoggerProvider
     /// <summary>
     /// Освободить ресурсы.
     /// </summary>
-    public void Dispose() { }
+    public void Dispose()
+    {
+    }
 }

@@ -1,5 +1,5 @@
-using System.Text.Json;
 using System.Text.Encodings.Web;
+using System.Text.Json;
 using Bpme.Application.Abstractions;
 using Bpme.Application.Settings;
 using Bpme.Domain.Model;
@@ -69,5 +69,3 @@ public sealed class LogSinkHandler : IStepHandler, IOptionalStepHandler
         _logger.LogInformation("Parsed JSON:\n{Json}", pretty);
     }
 }
-
-

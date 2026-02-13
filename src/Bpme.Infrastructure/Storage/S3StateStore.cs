@@ -75,6 +75,9 @@ public sealed class S3StateStore : IStateStore
         _logger.LogInformation("State marked: {Key}", key);
     }
 
+    /// <summary>
+    /// Убедиться, что bucket существует.
+    /// </summary>
     private async Task EnsureBucketAsync(CancellationToken ct)
     {
         var exists = await AmazonS3Util.DoesS3BucketExistV2Async(_client, _bucket);
@@ -85,6 +88,9 @@ public sealed class S3StateStore : IStateStore
         }
     }
 
+    /// <summary>
+    /// Построить ключ состояния с учётом префикса.
+    /// </summary>
     private string BuildKey(string fileId)
     {
         var cleanPrefix = _prefix?.Trim('/') ?? string.Empty;

@@ -54,6 +54,9 @@ public sealed class FileLogger : ILogger
         WriteLineShared(_path, line);
     }
 
+    /// <summary>
+    /// Записать строку с общим блокировочным доступом.
+    /// </summary>
     private static void WriteLineShared(string path, string line)
     {
         lock (LockObj)
@@ -64,9 +67,19 @@ public sealed class FileLogger : ILogger
         }
     }
 
+    /// <summary>
+    /// Пустой scope.
+    /// </summary>
     private sealed class NullScope : IDisposable
     {
+        /// <summary>
+        /// Единственный экземпляр.
+        /// </summary>
         public static readonly NullScope Instance = new();
+
+        /// <summary>
+        /// Освободить ресурсы.
+        /// </summary>
         public void Dispose()
         {
         }

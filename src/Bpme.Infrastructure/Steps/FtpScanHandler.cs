@@ -182,6 +182,9 @@ public sealed class FtpScanHandler : IStepHandler
         }
     }
 
+    /// <summary>
+    /// Создать FTP клиента с параметрами подключения.
+    /// </summary>
     private static FtpClient CreateFtpClient(FtpConnectionSettings ftp, FtpClientSettings clientSettings)
     {
         var client = new FtpClient(ftp.Host)
@@ -212,6 +215,9 @@ public sealed class FtpScanHandler : IStepHandler
         return client;
     }
 
+    /// <summary>
+    /// Построить путь на FTP с учётом базового каталога.
+    /// </summary>
     private static string BuildRemotePath(string basePath, string name)
     {
         var path = basePath?.Trim() ?? string.Empty;
@@ -229,6 +235,9 @@ public sealed class FtpScanHandler : IStepHandler
         return $"{path}{name.TrimStart('/')}";
     }
 
+    /// <summary>
+    /// Посчитать SHA-256 от содержимого потока.
+    /// </summary>
     private static string ComputeSha256(Stream stream)
     {
         using var sha = SHA256.Create();
@@ -236,6 +245,9 @@ public sealed class FtpScanHandler : IStepHandler
         return Convert.ToHexString(hash).ToLowerInvariant();
     }
 
+    /// <summary>
+    /// Преобразовать маску вида *.csv в регулярное выражение.
+    /// </summary>
     private static Regex WildcardToRegex(string pattern)
     {
         var escaped = Regex.Escape(pattern).Replace("\\*", ".*").Replace("\\?", ".");
