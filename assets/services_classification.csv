@@ -1,0 +1,80 @@
+code,service_label
+A12,Services
+A1201,Manufacturing services on physical inputs owned by others
+A12011,Goods for processing in reporting economy
+A12012,Goods for processing abroad
+A1202,Maintenance and repair services n.i.e.
+A1203,Transportation
+A12031,Sea transport
+A120311,Passenger
+A120312,Freight
+A120313,Other
+A12032,Air transport
+A120321,Passenger
+A120322,Freight
+A120323,Other
+A12033,Other modes of transport
+A12034,Postal and courier services
+A1204,Travel
+A12041,Business travel
+A12042,Personal travel
+A120421,Education related travel
+A120422,Health related travel
+A120423,Other personal travel
+A1205,Construction services
+A1206,Insurance and pension services
+A12061,Direct insurance
+A12062,Reinsurance
+A12063,Auxiliary insurance services
+A12064,Pension and standardized guarantee services
+A1207,Financial services
+A12071,Explicitly charged and other financial services
+A120711,Asset management fees
+A120712,Underwriting and placement of securities
+A120713,Financial advisory services
+A120714,Financial transaction processing
+A120715,Other financial services
+A12072,Financial intermediation services indirectly measured (FISIM)
+A1208,Charges for the use of intellectual property n.i.e.
+A12081,Franchises and trademarks licensing fees
+A120811,Revenue/payments from franchise rights
+A120812,Other royalty payments received/made
+A12082,Licenses for the use of outcomes of research and development
+A12083,Licences to reproduce and/or distribute computer software
+A12084,Licenses to reproduce and/or distribute audiovisual and related products
+A120841,Licenses to reproduce and/or distribute audiovisual products
+A120842,Licenses to reproduce and/or distribute other products
+A1209,"Telecommunications, computer, and information services"
+A12091,Telecommunications services
+A120911,Internet access and telecommunication services
+A120912,Other telecommunication services
+A12092,Computer services
+A120921,Computer software
+A120922,Other computer services
+A12093,Information services
+A120931,News agency services
+A120932,Other information services
+A1210,Other business services
+A12101,Research and development
+A12102,Professional and management consulting services
+A121021,"Legal, accounting, management consulting, and public relations"
+A121022,"Advertising, market research, and public opinion polling"
+A12103,"Technical, trade-related, and other business services"
+A121031,"Architectural, engineering, scientific and other technical services"
+A121032,"Waste treatment and de-pollution, agricultural and mining services"
+A121033,Operating leasing services
+A121034,Trade-related services
+A121035,Other business services n.i.e
+A1211,"Personal, cultural, and recreational services"
+A12111,Audiovisual and related services
+A121111,Audiovisual services
+A121112,Artistic related services
+A12112,"Other personal, cultural, and recreational services"
+A121121,Health services
+A121122,Education services
+A121123,Heritage and recreational services
+A121124,Other personal services
+A1212,"Government services, n.i.e"
+A12121,Embassies and consulates
+A12122,Military units and agencies
+A12123,Other government goods and services n.i.e
