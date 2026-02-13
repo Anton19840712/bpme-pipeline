@@ -1,0 +1,117 @@
+<mxfile host="Electron" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) draw.io/25.0.2 Chrome/128.0.6613.186 Electron/32.2.5 Safari/537.36" version="25.0.2">
+  <diagram id="queues" name="Queues Detail">
+    <mxGraphModel dx="4040" dy="2686" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1200" pageHeight="900" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="t1" value="Queues Detail: Internal Steps + External Consumer" style="text;html=1;align=center;verticalAlign=middle;fontSize=16;fontStyle=1;fontColor=#333333;" parent="1" vertex="1">
+          <mxGeometry x="-410" y="-890" width="760" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="ftp" value="FTP Server\n(external)" style="rounded=0;strokeColor=#6c8ebf;fillColor=#dae8fc;fontSize=11;" parent="1" vertex="1">
+          <mxGeometry x="-1020" y="-490" width="160" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="app" value="AdminApi + Worker" style="rounded=0;strokeColor=#666666;fillColor=#f5f5f5;fontSize=11;fontColor=#333333;horizontal=1;verticalAlign=top;" parent="1" vertex="1">
+          <mxGeometry x="-590" y="-610" width="370" height="350" as="geometry" />
+        </mxCell>
+        <mxCell id="worker" value="PipelineWorker\n(periodic, every PeriodInSeconds)" style="rounded=0;strokeColor=#d6b656;fillColor=#fff2cc;fontSize=11;" parent="1" vertex="1">
+          <mxGeometry x="-580" y="-570" width="350" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="step2" value="FtpScanHandler\n(list, download)" style="rounded=0;strokeColor=#d6b656;fillColor=#fff2cc;fontSize=11;" parent="1" vertex="1">
+          <mxGeometry x="-580" y="-490" width="350" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="step3" value="ParseCsvHandler" style="rounded=0;strokeColor=#d6b656;fillColor=#fff2cc;fontSize=11;" parent="1" vertex="1">
+          <mxGeometry x="-580" y="-415" width="350" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="step4" value="LogSinkHandler (optional)" style="rounded=0;strokeColor=#d6b656;fillColor=#fff2cc;fontSize=11;" parent="1" vertex="1">
+          <mxGeometry x="-580" y="-330" width="350" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="bus" value="RabbitMQ\nExchange: bpme.events" style="rounded=0;strokeColor=#d79b00;fillColor=#ffe6cc;fontSize=11;verticalAlign=top;" parent="1" vertex="1">
+          <mxGeometry x="450" y="-750" width="300" height="290" as="geometry" />
+        </mxCell>
+        <mxCell id="q1" value="Queue\n(bpme.pipeline.ftp-askro.period)" style="rounded=0;strokeColor=#6c8ebf;fillColor=#dae8fc;fontSize=10;" parent="1" vertex="1">
+          <mxGeometry x="470" y="-680" width="260" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="q2" value="Queue\n(bpme.pipeline.ftp-askro.period.scan)" style="rounded=0;strokeColor=#6c8ebf;fillColor=#dae8fc;fontSize=10;" parent="1" vertex="1">
+          <mxGeometry x="470" y="-610" width="260" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="q3" value="Queue\n(bpme.pipeline.ftp-askro.period.scan.parsing)" style="rounded=0;strokeColor=#6c8ebf;fillColor=#dae8fc;fontSize=10;" parent="1" vertex="1">
+          <mxGeometry x="470" y="-530" width="260" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="s3" value="MinIO S3" style="rounded=0;strokeColor=#6c8ebf;fillColor=#dae8fc;fontSize=11;" parent="1" vertex="1">
+          <mxGeometry x="540" y="-250" width="140" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="cons" value="External Consumer" style="rounded=0;strokeColor=#666666;fillColor=#f5f5f5;fontSize=11;fontColor=#333333;verticalAlign=top;" parent="1" vertex="1">
+          <mxGeometry x="840" y="-460" width="160" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="c1" value="Consumer App" style="rounded=0;strokeColor=#d6b656;fillColor=#fff2cc;fontSize=11;" parent="1" vertex="1">
+          <mxGeometry x="860" y="-415" width="120" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="log" value="bpme.log" style="rounded=0;strokeColor=#82b366;fillColor=#d5e8d4;fontSize=11;" parent="1" vertex="1">
+          <mxGeometry x="490" y="30" width="300" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="e1" value="publish ftp-askro.period" style="endArrow=classic;strokeColor=default;html=1;fontSize=9;entryX=0;entryY=0.5;entryDx=0;entryDy=0;exitX=0.994;exitY=0.411;exitDx=0;exitDy=0;exitPerimeter=0;dashed=1;" parent="1" source="worker" target="q1" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e2" value="consume" style="endArrow=classic;strokeColor=default;html=1;fontSize=9;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=1;entryY=0;entryDx=0;entryDy=0;dashed=1;" parent="1" source="q1" target="step2" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="-230" y="-460" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e3" value="publish ftp-askro.period.scan" style="endArrow=classic;strokeColor=default;html=1;fontSize=9;entryX=0;entryY=0.5;entryDx=0;entryDy=0;exitX=1;exitY=0.5;exitDx=0;exitDy=0;dashed=1;" parent="1" source="step2" target="q2" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e4" value="consume" style="endArrow=classic;strokeColor=default;html=1;fontSize=9;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=1;entryY=0;entryDx=0;entryDy=0;dashed=1;" parent="1" source="q2" target="step3" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="-230" y="-390" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e5" value="publish ftp-askro.period.scan.parsing" style="endArrow=classic;strokeColor=default;html=1;fontSize=9;entryX=0;entryY=0.5;entryDx=0;entryDy=0;exitX=1;exitY=0.5;exitDx=0;exitDy=0;dashed=1;" parent="1" source="step3" target="q3" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e6" value="consume" style="endArrow=classic;strokeColor=default;html=1;fontSize=9;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=1;entryY=0;entryDx=0;entryDy=0;dashed=1;" parent="1" source="q3" target="step4" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e7" value="consume" style="endArrow=classic;strokeColor=default;html=1;fontSize=9;exitX=1;exitY=0.5;exitDx=0;exitDy=0;dashed=1;" parent="1" source="q3" target="c1" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e8" value="list/download" style="endArrow=classic;strokeColor=#333333;html=1;fontSize=9;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="step2" target="ftp" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="-770" y="-460" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e9" value="put raw csv" style="endArrow=classic;strokeColor=#333333;html=1;fontSize=9;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.25;entryDx=0;entryDy=0;" parent="1" source="step2" target="s3" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="-240" y="-430" as="sourcePoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e10" value="put parsed json" style="endArrow=classic;strokeColor=#333333;html=1;fontSize=9;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.25;entryDx=0;entryDy=0;" parent="1" source="step3" target="s3" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e11" value="get parsed json" style="endArrow=classic;strokeColor=#333333;html=1;fontSize=9;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="c1" target="s3" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="680" y="-235" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e12" value="log" style="endArrow=classic;strokeColor=#333333;html=1;fontSize=9;exitX=1;exitY=0.5;exitDx=0;exitDy=0;strokeWidth=0;" parent="1" source="worker" target="log" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e13" value="log" style="endArrow=classic;strokeColor=#333333;html=1;fontSize=9;strokeWidth=0;" parent="1" target="log" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="-230" y="-460" as="sourcePoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e14" value="log" style="endArrow=classic;strokeColor=#333333;html=1;fontSize=9;exitX=1;exitY=0.5;exitDx=0;exitDy=0;strokeWidth=0;" parent="1" source="step3" target="log" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="-220" y="-390" as="sourcePoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e15" value="log" style="endArrow=classic;strokeColor=#333333;html=1;fontSize=9;exitX=1;exitY=0.5;exitDx=0;exitDy=0;strokeWidth=0;" parent="1" source="step4" target="log" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e16" value="log" style="endArrow=classic;strokeColor=#333333;html=1;fontSize=9;strokeWidth=0;" parent="1" source="c1" target="log" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

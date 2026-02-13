@@ -1,0 +1,52 @@
+<mxfile host="Electron" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) draw.io/25.0.2 Chrome/128.0.6613.186 Electron/32.2.5 Safari/537.36" version="25.0.2">
+  <diagram id="arch1" name="Architecture Overview">
+    <mxGraphModel dx="1671" dy="1751" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1100" pageHeight="700" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="t1" value="BPMe Architecture (AdminApi + Worker)" style="text;html=1;align=center;verticalAlign=middle;fontSize=16;fontStyle=1;fontColor=#333333;" parent="1" vertex="1">
+          <mxGeometry x="300" y="-650" width="500" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="b1" value="External FTP Server" style="rounded=0;strokeColor=#666666;fillColor=#f5f5f5;fontSize=11;fontColor=#333333;" parent="1" vertex="1">
+          <mxGeometry x="30" y="-420" width="150" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="b2" value="Application" style="rounded=0;strokeColor=#d6b656;fillColor=#fff2cc;fontSize=11;" parent="1" vertex="1">
+          <mxGeometry x="280" y="-420" width="140" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="b3" value="RabbitMQ\nEvent Bus" style="rounded=0;strokeColor=#666666;fillColor=#f5f5f5;fontSize=11;fontColor=#333333;" parent="1" vertex="1">
+          <mxGeometry x="505" y="-560" width="140" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="b4" value="MinIO S3\nraw/ parsed" style="rounded=0;strokeColor=#666666;fillColor=#f5f5f5;fontSize=11;fontColor=#333333;" parent="1" vertex="1">
+          <mxGeometry x="505" y="-420" width="140" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="b6" value="Consumer App" style="rounded=0;strokeColor=#d6b656;fillColor=#fff2cc;fontSize=11;" parent="1" vertex="1">
+          <mxGeometry x="710" y="-560" width="140" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="b7" value="bpme.log" style="rounded=0;strokeColor=#6c8ebf;fillColor=#dae8fc;fontSize=11;" parent="1" vertex="1">
+          <mxGeometry x="705" y="-220" width="150" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="e1" value="scan" style="endArrow=classic;strokeColor=#333333;html=1;fontSize=9;" parent="1" source="b2" target="b1" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e2" value="event" style="endArrow=classic;strokeColor=#333333;html=1;fontSize=9;" parent="1" source="b2" target="b3" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e3" value="put/get" style="endArrow=classic;strokeColor=#333333;html=1;fontSize=9;" parent="1" source="b2" target="b4" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e5" value="subscribe" style="endArrow=classic;strokeColor=#333333;html=1;fontSize=9;" parent="1" source="b3" target="b6" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e6" value="get" style="endArrow=classic;strokeColor=#333333;html=1;fontSize=9;" parent="1" source="b6" target="b4" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e7" value="log" style="endArrow=classic;strokeColor=#333333;html=1;fontSize=9;" parent="1" source="b2" target="b7" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e8" value="log" style="endArrow=classic;strokeColor=#333333;html=1;fontSize=9;" parent="1" source="b6" target="b7" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
