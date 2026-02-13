@@ -1,0 +1,77 @@
+{
+  "tag": "ftp-askro",
+  "steps": [
+    {
+      "topicTag": "ftp-askro.period",
+      "name": "periodicallyTrigger",
+      "parameters": [
+        {
+          "key": "periodInSeconds",
+          "value": "600"
+        }
+      ]
+    },
+    {
+      "topicTag": "ftp-askro.period.scan",
+      "name": "ftpScan",
+      "parameters": [
+        {
+          "key": "host",
+          "value": "sftp://127.0.0.1:21"
+        },
+        {
+          "key": "user",
+          "value": "admin"
+        },
+        {
+          "key": "password",
+          "value": "admin"
+        },
+        {
+          "key": "searchPath",
+          "value": "/output"
+        },
+        {
+          "key": "byMask",
+          "value": "*.csv"
+        },
+        {
+          "key": "NotOlderThenInSeconds",
+          "value": "100"
+        }
+      ]
+    },
+    {
+      "topicTag": "ftp-askro.period.scan.parsing",
+      "name": "parseCsvToJsonArray",
+      "parameters": [
+        {
+          "key": "delimiter",
+          "value": ","
+        },
+        {
+          "key": "hasHeader",
+          "value": "true"
+        },
+        {
+          "key": "encoding",
+          "value": "utf-8"
+        },
+        {
+          "key": "mapSchema",
+          "value": "askroSchema"
+        }
+      ]
+    },
+    {
+      "topicTag": "ftp-askro.period.scan.parsing.send",
+      "name": "postTo",
+      "parameters": [
+        {
+          "key": "destination",
+          "value": "http://127.0.0.1/api/directories?code=askro"
+        }
+      ]
+    }
+  ]
+}

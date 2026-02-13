@@ -4,6 +4,7 @@ using System.Security.Cryptography;
 using System.Text.RegularExpressions;
 using Bpme.Application.Abstractions;
 using Bpme.Application.Settings;
+using Bpme.Application.Pipeline;
 using Bpme.Domain.Abstractions;
 using Bpme.Domain.Model;
 using FluentFTP;
@@ -21,20 +22,27 @@ public sealed class FtpScanHandler : IStepHandler
     private readonly IStateStore _stateStore;
     private readonly PipelineSettings _settings;
     private readonly ILogger<FtpScanHandler> _logger;
-    private readonly PipelineTopicsSettings _topics;
+    private readonly PipelineDefinition _definition;
     private readonly StoragePathsSettings _paths;
     private readonly FtpClientSettings _ftpClientSettings;
+    private const string StepName = "ftpScan";
 
     /// <summary>
     /// Создать обработчик.
     /// </summary>
-    public FtpScanHandler(IObjectStorage storage, IEventBus bus, IStateStore stateStore, PipelineSettings settings, ILogger<FtpScanHandler> logger)
+    public FtpScanHandler(
+        IObjectStorage storage,
+        IEventBus bus,
+        IStateStore stateStore,
+        PipelineSettings settings,
+        IPipelineDefinitionProvider definitionProvider,
+        ILogger<FtpScanHandler> logger)
     {
         _storage = storage;
         _bus = bus;
         _stateStore = stateStore;
         _settings = settings;
-        _topics = settings.PipelineTopics;
+        _definition = definitionProvider.GetDefinition();
         _paths = settings.StoragePaths;
         _ftpClientSettings = settings.FtpClient;
         _logger = logger;
@@ -43,7 +51,7 @@ public sealed class FtpScanHandler : IStepHandler
     /// <summary>
     /// Тема обработки.
     /// </summary>
-    public TopicTag Topic => TopicTag.From(_topics.TriggerTopic);
+    public TopicTag Topic => TopicTag.From(_definition.GetPreviousStep(StepName).TopicTag);
 
     /// <summary>
     /// Обработать событие триггера.
@@ -56,10 +64,22 @@ public sealed class FtpScanHandler : IStepHandler
         {
             var ftp = _settings.FtpConnection;
             var detect = _settings.FtpDetection;
+            var step = _definition.GetStep(StepName);
 
-            _logger.LogInformation("FTP scan start. Host={Host} Path={Path}", ftp.Host, detect.SearchPath);
+            var host = ftp.Host;
+            var port = ftp.Port;
+            ApplyFtpOverrides(step, ref host, ref port);
+            var user = GetParam(step, "user") ?? ftp.User;
+            var password = GetParam(step, "password") ?? ftp.Password;
+            var searchPath = GetParam(step, "searchPath") ?? detect.SearchPath;
+            var mask = GetParam(step, "byMask") ?? detect.Mask;
+            var notOlder = GetIntParam(step, "NotOlderThanInSeconds")
+                           ?? GetIntParam(step, "NotOlderThenInSeconds")
+                           ?? detect.NotOlderThanSeconds;
 
-            var basePath = detect.SearchPath?.Trim();
+            _logger.LogInformation("FTP scan start. Host={Host} Path={Path}", host, searchPath);
+
+            var basePath = searchPath?.Trim();
             if (string.IsNullOrWhiteSpace(basePath))
             {
                 basePath = "/";
@@ -70,7 +90,7 @@ public sealed class FtpScanHandler : IStepHandler
                 basePath += "/";
             }
 
-            using var client = CreateFtpClient(ftp, _ftpClientSettings);
+            using var client = CreateFtpClient(host, port, user, password, ftp.UseSsl, _ftpClientSettings);
             client.Connect();
 
             var items = client.GetListing(basePath);
@@ -80,8 +100,8 @@ public sealed class FtpScanHandler : IStepHandler
                 .ToList();
 
             var now = DateTimeOffset.UtcNow;
-            var cutoff = now.AddSeconds(-detect.NotOlderThanSeconds);
-            var regex = WildcardToRegex(detect.Mask);
+            var cutoff = now.AddSeconds(-notOlder);
+            var regex = WildcardToRegex(mask);
 
             var files = new List<(string Name, long Size, DateTime ModifiedUtc)>();
 
@@ -167,7 +187,7 @@ public sealed class FtpScanHandler : IStepHandler
                 // Технические события — просто лог/диагностика. Их можно публиковать после
                 // каждого шага, но они не нужны для работы цепочки. Поэтому здесь публикуется
                 // только переход к следующему шагу, чтобы не засорять шину.
-                await _bus.PublishAsync(new PipelineEvent(TopicTag.From(_topics.ScanTopic), evt.CorrelationId, payload), ct);
+                await _bus.PublishAsync(new PipelineEvent(TopicTag.From(_definition.GetStep(StepName).TopicTag), evt.CorrelationId, payload), ct);
                 if (!isDuplicate)
                 {
                     await _stateStore.MarkProcessedAsync(fileId.Value, ct);
@@ -185,12 +205,15 @@ public sealed class FtpScanHandler : IStepHandler
     /// <summary>
     /// Создать FTP клиента с параметрами подключения.
     /// </summary>
-    private static FtpClient CreateFtpClient(FtpConnectionSettings ftp, FtpClientSettings clientSettings)
+    /// <summary>
+    /// Создать FTP клиента с параметрами подключения.
+    /// </summary>
+    private static FtpClient CreateFtpClient(string host, int port, string user, string password, bool useSsl, FtpClientSettings clientSettings)
     {
-        var client = new FtpClient(ftp.Host)
+        var client = new FtpClient(host)
         {
-            Port = ftp.Port,
-            Credentials = new System.Net.NetworkCredential(ftp.User, ftp.Password)
+            Port = port,
+            Credentials = new System.Net.NetworkCredential(user, password)
         };
 
         client.Config.EncryptionMode = Enum.TryParse<FtpEncryptionMode>(clientSettings.EncryptionMode, true, out var enc)
@@ -206,13 +229,66 @@ public sealed class FtpScanHandler : IStepHandler
         client.Config.ConnectTimeout = clientSettings.ConnectTimeoutMs;
         client.Config.SocketKeepAlive = clientSettings.SocketKeepAlive;
 
-        if (ftp.UseSsl)
+        if (useSsl)
         {
             client.Config.EncryptionMode = FtpEncryptionMode.Explicit;
             client.Config.ValidateAnyCertificate = true;
         }
 
         return client;
+    }
+
+    /// <summary>
+    /// Применить параметры подключения из шага.
+    /// </summary>
+    private static void ApplyFtpOverrides(PipelineStep step, ref string host, ref int port)
+    {
+        var hostRaw = GetParam(step, "host");
+        if (string.IsNullOrWhiteSpace(hostRaw))
+        {
+            return;
+        }
+
+        var cleaned = hostRaw.Trim();
+        if (cleaned.Contains("://", StringComparison.OrdinalIgnoreCase))
+        {
+            if (Uri.TryCreate(cleaned, UriKind.Absolute, out var uri))
+            {
+                host = uri.Host;
+                if (uri.Port > 0)
+                {
+                    port = uri.Port;
+                }
+                return;
+            }
+        }
+
+        var parts = cleaned.Split(':', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length >= 1)
+        {
+            host = parts[0];
+        }
+        if (parts.Length >= 2 && int.TryParse(parts[1], out var parsedPort))
+        {
+            port = parsedPort;
+        }
+    }
+
+    /// <summary>
+    /// Получить параметр шага.
+    /// </summary>
+    private static string? GetParam(PipelineStep step, string key)
+    {
+        return step.GetParameter(key);
+    }
+
+    /// <summary>
+    /// Получить числовой параметр шага.
+    /// </summary>
+    private static int? GetIntParam(PipelineStep step, string key)
+    {
+        var raw = GetParam(step, key);
+        return int.TryParse(raw, out var value) ? value : null;
     }
 
     /// <summary>

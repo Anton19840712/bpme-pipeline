@@ -16,6 +16,7 @@ public sealed record PipelineSettings(
     RabbitMqSettings RabbitMq,
     PipelineTopicsSettings PipelineTopics,
     StoragePathsSettings StoragePaths,
+    PipelineDefinitionSettings PipelineDefinition,
     AdminApiSettings AdminApi,
     LoggingSettings Logging,
     ControlSettings? Control = null,
@@ -151,6 +152,13 @@ public sealed record PipelineTopicsSettings(
     string TriggerTopic,
     string ScanTopic,
     string ParsingTopic
+);
+
+/// <summary>
+/// Настройки определения пайплайна через JSON.
+/// </summary>
+public sealed record PipelineDefinitionSettings(
+    string FileName
 );
 
 /// <summary>

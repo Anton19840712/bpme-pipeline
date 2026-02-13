@@ -2,6 +2,7 @@ using System.Text.Encodings.Web;
 using System.Text.Json;
 using Bpme.Application.Abstractions;
 using Bpme.Application.Settings;
+using Bpme.Application.Pipeline;
 using Bpme.Domain.Model;
 using Microsoft.Extensions.Logging;
 
@@ -14,24 +15,29 @@ public sealed class LogSinkHandler : IStepHandler, IOptionalStepHandler
 {
     private readonly IObjectStorage _storage;
     private readonly ILogger<LogSinkHandler> _logger;
-    private readonly PipelineTopicsSettings _topics;
+    private readonly PipelineDefinition _definition;
     private readonly bool _enabled;
+    private const string StepName = "log";
 
     /// <summary>
     /// Создать обработчик.
     /// </summary>
-    public LogSinkHandler(IObjectStorage storage, PipelineSettings settings, ILogger<LogSinkHandler> logger)
+    public LogSinkHandler(
+        IObjectStorage storage,
+        PipelineSettings settings,
+        IPipelineDefinitionProvider definitionProvider,
+        ILogger<LogSinkHandler> logger)
     {
         _storage = storage;
         _enabled = settings.Sink.EnableLogStep;
         _logger = logger;
-        _topics = settings.PipelineTopics;
+        _definition = definitionProvider.GetDefinition();
     }
 
     /// <summary>
     /// Тема обработки.
     /// </summary>
-    public TopicTag Topic => TopicTag.From(_topics.ParsingTopic);
+    public TopicTag Topic => TopicTag.From(_definition.GetPreviousStep(StepName).TopicTag);
 
     /// <summary>
     /// Признак включения обработчика.

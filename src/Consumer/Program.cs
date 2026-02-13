@@ -51,6 +51,7 @@ public sealed class Program
             {
                 services.AddSingleton<ISettingsProvider, AppSettingsProvider>();
                 services.AddSingleton(sp => sp.GetRequiredService<ISettingsProvider>().Load());
+                services.AddSingleton<IPipelineDefinitionProvider, JsonPipelineDefinitionProvider>();
 
                 services.AddSingleton<IEventBus>(sp =>
                 {

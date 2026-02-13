@@ -9,6 +9,7 @@ using Bpme.Application.Settings;
 using Bpme.Domain.Abstractions;
 using Bpme.Domain.Model;
 using Bpme.Infrastructure.Bus;
+using Bpme.Infrastructure.Config;
 using Bpme.Infrastructure.Storage;
 using Bpme.Infrastructure.Steps;
 using FluentFTP;
@@ -43,6 +44,7 @@ builder.WebHost.ConfigureKestrel(o => { o.Limits.MaxRequestBodySize = settings.A
 
 
 builder.Services.AddSingleton(settings);
+builder.Services.AddSingleton<IPipelineDefinitionProvider, JsonPipelineDefinitionProvider>();
 
 // Инфраструктура.
 builder.Services.AddSingleton<S3ObjectStorage>(sp =>
@@ -87,6 +89,7 @@ builder.Services.AddSingleton<IEventBus>(sp => sp.GetRequiredService<RabbitMqEve
 builder.Services.AddSingleton<IStepHandler, FtpScanHandler>();
 builder.Services.AddSingleton<IStepHandler, ParseCsvHandler>();
 builder.Services.AddSingleton<IStepHandler, LogSinkHandler>();
+builder.Services.AddSingleton<IStepHandler, PostToHandler>();
 builder.Services.AddSingleton<PipelineOrchestrator>();
 builder.Services.AddHostedService<PipelineWorker>();
 
@@ -133,7 +136,7 @@ app.MapGet("/admin/ftp/files", () =>
     return Results.Ok(files);
 });
 
-app.MapPost("/admin/ftp/upload", async ([FromForm] FtpUploadRequest req, ILogger<Program> logger, RabbitMqEventBus bus) =>
+app.MapPost("/admin/ftp/upload", async ([FromForm] FtpUploadRequest req, ILogger<Program> logger, RabbitMqEventBus bus, IPipelineDefinitionProvider definitionProvider) =>
 {
     if (req.File.Length == 0)
     {
@@ -156,13 +159,14 @@ app.MapPost("/admin/ftp/upload", async ([FromForm] FtpUploadRequest req, ILogger
         throw;
     }
     logger.LogInformation("FTP upload done. name={Name}", name);
-    var evt = new PipelineEvent(TopicTag.From(settings.PipelineTopics.TriggerTopic), Guid.NewGuid().ToString("N"), new Dictionary<string, string>
+    var triggerTopic = definitionProvider.GetDefinition().GetFirstStep().TopicTag;
+    var evt = new PipelineEvent(TopicTag.From(triggerTopic), Guid.NewGuid().ToString("N"), new Dictionary<string, string>
     {
         ["fileName"] = name
     });
     await bus.PublishAsync(evt);
-    logger.LogInformation("FTP upload trigger published. topic={Topic}", settings.PipelineTopics.TriggerTopic);
-    return Results.Ok(new { name, trigger = settings.PipelineTopics.TriggerTopic });
+    logger.LogInformation("FTP upload trigger published. topic={Topic}", triggerTopic);
+    return Results.Ok(new { name, trigger = triggerTopic });
 })
 .WithOpenApi()
 .DisableAntiforgery();

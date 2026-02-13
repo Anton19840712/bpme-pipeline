@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using Bpme.Application.Abstractions;
 using Bpme.Application.Pipeline;
 using Bpme.Application.Settings;
 using Bpme.Domain.Abstractions;
@@ -17,6 +18,7 @@ public sealed class PipelineWorker : BackgroundService
     private readonly PipelineOrchestrator _orchestrator;
     private readonly IEventBus _eventBus;
     private readonly PipelineSettings _settings;
+    private readonly PipelineDefinition _definition;
 
     /// <summary>
     /// Создать воркер конвейера.
@@ -25,12 +27,14 @@ public sealed class PipelineWorker : BackgroundService
         ILogger<PipelineWorker> logger,
         PipelineOrchestrator orchestrator,
         IEventBus eventBus,
-        PipelineSettings settings)
+        PipelineSettings settings,
+        IPipelineDefinitionProvider definitionProvider)
     {
         _logger = logger;
         _orchestrator = orchestrator;
         _eventBus = eventBus;
         _settings = settings;
+        _definition = definitionProvider.GetDefinition();
     }
 
     /// <summary>
@@ -41,7 +45,13 @@ public sealed class PipelineWorker : BackgroundService
         _logger.LogInformation("Pipeline worker started.");
         _orchestrator.RegisterHandlers();
 
+        var triggerStep = _definition.GetFirstStep();
+        var periodParam = triggerStep.GetParameter("periodInSeconds");
         var periodSeconds = _settings.FtpDetection.PeriodInSeconds;
+        if (!string.IsNullOrWhiteSpace(periodParam) && int.TryParse(periodParam, out var parsedPeriod))
+        {
+            periodSeconds = parsedPeriod;
+        }
         if (periodSeconds > 0)
         {
             _logger.LogInformation("FTP polling enabled. Period={Seconds}s", periodSeconds);
@@ -49,7 +59,8 @@ public sealed class PipelineWorker : BackgroundService
             {
                 var correlationId = Guid.NewGuid().ToString("N");
                 using var scope = _logger.BeginScope(new Dictionary<string, object> { ["correlationId"] = correlationId });
-                var evt = new PipelineEvent(TopicTag.From(_settings.PipelineTopics.TriggerTopic), correlationId, new Dictionary<string, string>());
+                var triggerTopic = triggerStep.TopicTag;
+                var evt = new PipelineEvent(TopicTag.From(triggerTopic), correlationId, new Dictionary<string, string>());
                 await _eventBus.PublishAsync(evt);
                 await Task.Delay(TimeSpan.FromSeconds(periodSeconds), stoppingToken);
             }
