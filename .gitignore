@@ -7,6 +7,7 @@
 
 # Logs
 bpme.log
+Logs/
 
 # Large local test files
 assets/output_csv_full.csv
@@ -18,3 +19,6 @@ docker/ftp/upload/
 # OS files
 Thumbs.db
 Desktop.ini
+
+# IDE launch artifacts
+*.slnLaunch.user
