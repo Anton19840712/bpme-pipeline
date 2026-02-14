@@ -1,6 +1,5 @@
-using System.Collections.Generic;
-using System.Linq;
 using System.Text;
+using System.Globalization;
 using System.Text.Encodings.Web;
 using System.Text.Json;
 using Bpme.Application.Abstractions;
@@ -8,52 +7,54 @@ using Bpme.Application.Settings;
 using Bpme.Application.Pipeline;
 using Bpme.Domain.Abstractions;
 using Bpme.Domain.Model;
+using CsvHelper;
+using CsvHelper.Configuration;
 using Microsoft.Extensions.Logging;
 
 namespace Bpme.Infrastructure.Steps;
-
-/// <summary>
-/// Парсер CSV в JSON.
-/// </summary>
-public sealed class ParseCsvHandler : IStepHandler
+public sealed class ParseCsvHandler : IStepHandler, IMultiTopicStepHandler, IStepNameProvider
 {
     private readonly IObjectStorage _storage;
     private readonly IEventBus _bus;
     private readonly ILogger<ParseCsvHandler> _logger;
-    private readonly PipelineDefinition _definition;
+    private readonly IPipelineDefinitionRegistry _registry;
     private readonly StoragePathsSettings _paths;
-    private const string StepName = "parseCsvToJsonArray";
-
-    /// <summary>
-    /// Создать обработчик.
-    /// </summary>
+    private readonly PipelineSettings _settings;
+    private const string StepNameConst = "parseCsvToJsonArray";
     public ParseCsvHandler(
         IObjectStorage storage,
         IEventBus bus,
         PipelineSettings settings,
-        IPipelineDefinitionProvider definitionProvider,
+        IPipelineDefinitionRegistry registry,
         ILogger<ParseCsvHandler> logger)
     {
         _storage = storage;
         _bus = bus;
-        _definition = definitionProvider.GetDefinition();
+        _registry = registry;
         _paths = settings.StoragePaths;
+        _settings = settings;
         _logger = logger;
     }
-
-    /// <summary>
-    /// Тема обработки.
-    /// </summary>
-    public TopicTag Topic => TopicTag.From(_definition.GetPreviousStep(StepName).TopicTag);
-
-    /// <summary>
-    /// Обработать событие сканирования.
-    /// </summary>
+    public TopicTag Topic => Topics.Count > 0 ? Topics[0] : TopicTag.From(_settings.PipelineTopics.ScanTopic);
+    public IReadOnlyList<TopicTag> Topics => ResolveTopics();
+    public string StepName => StepNameConst;
     public async Task HandleAsync(PipelineEvent evt, CancellationToken ct)
     {
-        using var scope = _logger.BeginScope(new Dictionary<string, object> { ["correlationId"] = evt.CorrelationId });
+        var pipelineTag = evt.Payload.TryGetValue("pipelineTag", out var tag) ? tag : null;
+        var iteration = evt.Payload.TryGetValue("iteration", out var iter) ? iter : "-";
+        var definition = _registry.ResolveByInputTopic(StepNameConst, evt.Topic.Value, pipelineTag);
+        var step = _registry.GetStepByInputTopic(definition, StepNameConst, evt.Topic.Value);
 
-        var step = _definition.GetStep(StepName);
+        using var scope = _logger.BeginScope(new Dictionary<string, object>
+        {
+            ["correlationId"] = evt.CorrelationId,
+            ["Process"] = definition.Tag,
+            ["Step"] = StepNameConst,
+            ["Iteration"] = iteration
+        });
+
+        _logger.LogInformation("������=started");
+
         var delimiter = GetDelimiter(step);
         var hasHeader = GetBoolParam(step, "hasHeader", true);
         var encoding = GetEncoding(step);
@@ -61,6 +62,7 @@ public sealed class ParseCsvHandler : IStepHandler
         if (!evt.Payload.TryGetValue("s3Path", out var s3Path))
         {
             _logger.LogWarning("Missing s3Path in event payload");
+            _logger.LogInformation("������=finished");
             return;
         }
 
@@ -70,46 +72,67 @@ public sealed class ParseCsvHandler : IStepHandler
         await using var stream = await _storage.GetAsync(s3Path, ct);
         using var reader = new StreamReader(stream, encoding);
 
-        var lines = new List<string>();
-        while (!reader.EndOfStream)
+        var csvConfig = new CsvConfiguration(CultureInfo.InvariantCulture)
         {
-            lines.Add(await reader.ReadLineAsync() ?? string.Empty);
-        }
+            Delimiter = delimiter.ToString(),
+            HasHeaderRecord = hasHeader,
+            IgnoreBlankLines = true,
+            TrimOptions = TrimOptions.Trim,
+            BadDataFound = null,
+            MissingFieldFound = null
+        };
 
-        if (lines.Count == 0)
-        {
-            _logger.LogWarning("Empty CSV: {S3}", s3Path);
-            return;
-        }
+        using var csv = new CsvReader(reader, csvConfig);
 
-        var headerIndex = 0;
+        var rows = new List<Dictionary<string, string>>();
         string[] headers;
+
         if (hasHeader)
         {
-            headers = lines[0].Split(delimiter).Select(CleanCsvCell).ToArray();
-            headerIndex = 1;
+            if (!csv.Read())
+            {
+                _logger.LogWarning("Empty CSV: {S3}", s3Path);
+                _logger.LogInformation("������=finished");
+                return;
+            }
+
+            csv.ReadHeader();
+            headers = csv.HeaderRecord ?? Array.Empty<string>();
+            headers = NormalizeHeaders(headers);
+
+            while (csv.Read())
+            {
+                var row = new Dictionary<string, string>();
+                for (int i = 0; i < headers.Length; i++)
+                {
+                    row[headers[i]] = csv.GetField(i) ?? string.Empty;
+                }
+                rows.Add(row);
+            }
         }
         else
         {
-            var firstCells = lines[0].Split(delimiter);
-            headers = Enumerable.Range(1, firstCells.Length).Select(i => $"col{i}").ToArray();
-        }
-
-        var rows = new List<Dictionary<string, string>>();
-        for (int i = headerIndex; i < lines.Count; i++)
-        {
-            if (string.IsNullOrWhiteSpace(lines[i]))
+            headers = Array.Empty<string>();
+            while (csv.Read())
             {
-                continue;
-            }
+                var record = csv.Parser.Record ?? Array.Empty<string>();
+                if (record.Length == 0)
+                {
+                    continue;
+                }
 
-            var cells = lines[i].Split(delimiter).Select(CleanCsvCell).ToArray();
-            var row = new Dictionary<string, string>();
-            for (int c = 0; c < headers.Length && c < cells.Length; c++)
-            {
-                row[headers[c]] = cells[c];
+                if (headers.Length == 0)
+                {
+                    headers = Enumerable.Range(1, record.Length).Select(i => $"col{i}").ToArray();
+                }
+
+                var row = new Dictionary<string, string>();
+                for (int i = 0; i < headers.Length && i < record.Length; i++)
+                {
+                    row[headers[i]] = record[i] ?? string.Empty;
+                }
+                rows.Add(row);
             }
-            rows.Add(row);
         }
 
         var json = JsonSerializer.Serialize(rows, new JsonSerializerOptions
@@ -122,63 +145,49 @@ public sealed class ParseCsvHandler : IStepHandler
         await using var jsonStream = new MemoryStream(jsonBytes);
         await _storage.PutAsync(jsonKey, jsonStream, ct);
 
-        var payload = new Dictionary<string, string>
+        var payload = new Dictionary<string, string>(evt.Payload)
         {
             ["parsedPath"] = jsonKey,
             ["rowsCount"] = rows.Count.ToString(),
-            ["isDuplicate"] = isDuplicate ? "true" : "false"
+            ["isDuplicate"] = isDuplicate ? "true" : "false",
+            ["Process"] = definition.Tag
         };
 
-        // Технические события — просто лог/диагностика. Их можно публиковать после
-        // каждого шага, но они не нужны для работы цепочки. Поэтому здесь публикуется
-        // только переход к следующему шагу, чтобы не засорять шину.
-        await _bus.PublishAsync(new PipelineEvent(TopicTag.From(_definition.GetStep(StepName).TopicTag), evt.CorrelationId, payload), ct);
-        _logger.LogInformation("Parse done. rows={Rows} s3={S3} duplicate={Duplicate}", rows.Count, jsonKey, isDuplicate);
-    }
+        await _bus.PublishAsync(new PipelineEvent(TopicTag.From(step.TopicTag), evt.CorrelationId, payload), ct);
+        _logger.LogInformation("Parse done. rows={Rows} s3={S3} duplicate={Duplicate} tag={Tag}", rows.Count, jsonKey, isDuplicate, definition.Tag);
 
-    /// <summary>
-    /// Нормализовать значение ячейки CSV.
-    /// </summary>
-    private static string CleanCsvCell(string value)
-    {
-        var cell = value?.Trim() ?? string.Empty;
-        if (cell.Length >= 2 && cell.StartsWith("\"") && cell.EndsWith("\""))
+        _logger.LogInformation("������=finished");
+
+        if (_registry.IsLastStepByInputTopic(definition, StepNameConst, evt.Topic.Value))
         {
-            cell = cell[1..^1];
+            _logger.LogInformation("������� ��������");
+        }
+    }
+    private static string[] NormalizeHeaders(string[] headers)
+    {
+        var result = new string[headers.Length];
+        for (int i = 0; i < headers.Length; i++)
+        {
+            var header = headers[i]?.Trim() ?? string.Empty;
+            result[i] = string.IsNullOrWhiteSpace(header) ? $"col{i + 1}" : header;
         }
 
-        return cell.Replace("\"\"", "\"").Trim();
+        return result;
     }
-
-    /// <summary>
-    /// Получить параметр шага.
-    /// </summary>
     private static string? GetParam(PipelineStep step, string key)
     {
         return step.GetParameter(key);
     }
-
-    /// <summary>
-    /// Получить bool параметр шага.
-    /// </summary>
     private static bool GetBoolParam(PipelineStep step, string key, bool defaultValue)
     {
         var raw = GetParam(step, key);
         return bool.TryParse(raw, out var value) ? value : defaultValue;
     }
-
-    /// <summary>
-    /// Получить разделитель CSV.
-    /// </summary>
     private static char GetDelimiter(PipelineStep step)
     {
         var raw = GetParam(step, "delimiter");
         return !string.IsNullOrWhiteSpace(raw) ? raw[0] : ',';
     }
-
-    /// <summary>
-    /// Получить кодировку CSV.
-    /// </summary>
     private static Encoding GetEncoding(PipelineStep step)
     {
         var raw = GetParam(step, "encoding");
@@ -196,4 +205,25 @@ public sealed class ParseCsvHandler : IStepHandler
             return Encoding.UTF8;
         }
     }
+
+    private IReadOnlyList<TopicTag> ResolveTopics()
+    {
+        var topics = new List<TopicTag>();
+        foreach (var definition in _registry.GetAll())
+        {
+            var inputTopics = _registry.GetInputTopics(definition, StepNameConst);
+            foreach (var input in inputTopics)
+            {
+                topics.Add(TopicTag.From(input));
+            }
+        }
+
+        return topics;
+    }
 }
+
+
+
+
+
+

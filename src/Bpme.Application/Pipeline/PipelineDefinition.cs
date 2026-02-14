@@ -1,13 +1,9 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-
 namespace Bpme.Application.Pipeline;
 
 /// <summary>
 /// Описание пайплайна шагов.
 /// </summary>
-public sealed record PipelineDefinition(string Tag, IReadOnlyList<PipelineStep> Steps)
+public sealed record PipelineDefinition(string Tag, bool Enabled = true, IReadOnlyList<PipelineStep> Steps = null!)
 {
     /// <summary>
     /// Найти шаг по имени.
@@ -24,6 +20,29 @@ public sealed record PipelineDefinition(string Tag, IReadOnlyList<PipelineStep> 
     }
 
     /// <summary>
+    /// Найти шаг по имени и входной теме.
+    /// </summary>
+    public PipelineStep GetStepByInputTopic(string name, string inputTopic)
+    {
+        for (int i = 1; i < Steps.Count; i++)
+        {
+            var step = Steps[i];
+            if (!string.Equals(step.Name, name, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var prev = Steps[i - 1];
+            if (string.Equals(prev.TopicTag, inputTopic, StringComparison.OrdinalIgnoreCase))
+            {
+                return step;
+            }
+        }
+
+        throw new InvalidOperationException($"Шаг '{name}' не найден для входной темы '{inputTopic}'.");
+    }
+
+    /// <summary>
     /// Получить предыдущий шаг относительно заданного имени.
     /// </summary>
     public PipelineStep GetPreviousStep(string name)
@@ -37,6 +56,7 @@ public sealed record PipelineDefinition(string Tag, IReadOnlyList<PipelineStep> 
                 break;
             }
         }
+
         if (index <= 0)
         {
             throw new InvalidOperationException($"Для шага '{name}' отсутствует предыдущий шаг.");
@@ -56,6 +76,53 @@ public sealed record PipelineDefinition(string Tag, IReadOnlyList<PipelineStep> 
         }
 
         return Steps[0];
+    }
+
+    /// <summary>
+    /// Проверить, является ли шаг последним для входной темы.
+    /// </summary>
+    public bool IsLastStepByInputTopic(string name, string inputTopic)
+    {
+        for (int i = 1; i < Steps.Count; i++)
+        {
+            var step = Steps[i];
+            if (!string.Equals(step.Name, name, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var prev = Steps[i - 1];
+            if (string.Equals(prev.TopicTag, inputTopic, StringComparison.OrdinalIgnoreCase))
+            {
+                return i == Steps.Count - 1;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Получить список входных тем для всех вхождений шага.
+    /// </summary>
+    public IReadOnlyList<string> GetInputTopics(string name)
+    {
+        var topics = new List<string>();
+        for (int i = 1; i < Steps.Count; i++)
+        {
+            var step = Steps[i];
+            if (!string.Equals(step.Name, name, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var prev = Steps[i - 1];
+            if (!string.IsNullOrWhiteSpace(prev.TopicTag))
+            {
+                topics.Add(prev.TopicTag);
+            }
+        }
+
+        return topics;
     }
 }
 

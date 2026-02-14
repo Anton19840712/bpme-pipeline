@@ -14,4 +14,15 @@ public interface IObjectStorage
     /// Получить объект по ключу.
     /// </summary>
     Task<Stream> GetAsync(string key, CancellationToken ct);
+
+    /// <summary>
+    /// Получить список объектов по префиксу.
+    /// </summary>
+    Task<List<string>> ListAsync(string? prefix = null, CancellationToken ct = default);
+
+    /// <summary>
+    /// Удалить объект по ключу.
+    /// </summary>
+    Task DeleteAsync(string key, CancellationToken ct = default);
 }
+

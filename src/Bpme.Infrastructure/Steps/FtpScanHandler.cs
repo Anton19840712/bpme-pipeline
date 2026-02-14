@@ -1,5 +1,3 @@
-﻿using System.Collections.Generic;
-using System.Linq;
 using System.Security.Cryptography;
 using System.Text.RegularExpressions;
 using Bpme.Application.Abstractions;
@@ -11,60 +9,57 @@ using FluentFTP;
 using Microsoft.Extensions.Logging;
 
 namespace Bpme.Infrastructure.Steps;
-
-/// <summary>
-/// Шаг сканирования FTP.
-/// </summary>
-public sealed class FtpScanHandler : IStepHandler
+public sealed class FtpScanHandler : IStepHandler, IMultiTopicStepHandler, IStepNameProvider
 {
     private readonly IObjectStorage _storage;
     private readonly IEventBus _bus;
     private readonly IStateStore _stateStore;
     private readonly PipelineSettings _settings;
     private readonly ILogger<FtpScanHandler> _logger;
-    private readonly PipelineDefinition _definition;
+    private readonly IPipelineDefinitionRegistry _registry;
     private readonly StoragePathsSettings _paths;
     private readonly FtpClientSettings _ftpClientSettings;
-    private const string StepName = "ftpScan";
-
-    /// <summary>
-    /// Создать обработчик.
-    /// </summary>
+    private const string StepNameConst = "ftpScan";
     public FtpScanHandler(
         IObjectStorage storage,
         IEventBus bus,
         IStateStore stateStore,
         PipelineSettings settings,
-        IPipelineDefinitionProvider definitionProvider,
+        IPipelineDefinitionRegistry registry,
         ILogger<FtpScanHandler> logger)
     {
         _storage = storage;
         _bus = bus;
         _stateStore = stateStore;
         _settings = settings;
-        _definition = definitionProvider.GetDefinition();
+        _registry = registry;
         _paths = settings.StoragePaths;
         _ftpClientSettings = settings.FtpClient;
         _logger = logger;
     }
-
-    /// <summary>
-    /// Тема обработки.
-    /// </summary>
-    public TopicTag Topic => TopicTag.From(_definition.GetPreviousStep(StepName).TopicTag);
-
-    /// <summary>
-    /// Обработать событие триггера.
-    /// </summary>
+    public TopicTag Topic => Topics.Count > 0 ? Topics[0] : TopicTag.From(_settings.PipelineTopics.TriggerTopic);
+    public IReadOnlyList<TopicTag> Topics => ResolveTopics();
+    public string StepName => StepNameConst;
     public async Task HandleAsync(PipelineEvent evt, CancellationToken ct)
     {
-        using var scope = _logger.BeginScope(new Dictionary<string, object> { ["correlationId"] = evt.CorrelationId });
-
         try
         {
             var ftp = _settings.FtpConnection;
             var detect = _settings.FtpDetection;
-            var step = _definition.GetStep(StepName);
+            var pipelineTag = evt.Payload.TryGetValue("pipelineTag", out var tag) ? tag : null;
+            var iteration = evt.Payload.TryGetValue("iteration", out var iter) ? iter : "-";
+            var definition = _registry.ResolveByInputTopic(StepNameConst, evt.Topic.Value, pipelineTag);
+            var step = _registry.GetStepByInputTopic(definition, StepNameConst, evt.Topic.Value);
+
+            using var scope = _logger.BeginScope(new Dictionary<string, object>
+            {
+                ["correlationId"] = evt.CorrelationId,
+                ["Process"] = definition.Tag,
+                ["Step"] = StepNameConst,
+                ["Iteration"] = iteration
+            });
+
+            _logger.LogInformation("������=started");
 
             var host = ftp.Host;
             var port = ftp.Port;
@@ -76,6 +71,7 @@ public sealed class FtpScanHandler : IStepHandler
             var notOlder = GetIntParam(step, "NotOlderThanInSeconds")
                            ?? GetIntParam(step, "NotOlderThenInSeconds")
                            ?? detect.NotOlderThanSeconds;
+            var hasTarget = evt.Payload.TryGetValue("fileName", out var targetName) && !string.IsNullOrWhiteSpace(targetName);
 
             _logger.LogInformation("FTP scan start. Host={Host} Path={Path}", host, searchPath);
 
@@ -107,22 +103,30 @@ public sealed class FtpScanHandler : IStepHandler
 
             foreach (var name in names.Where(n => regex.IsMatch(n)))
             {
+                if (hasTarget && !string.Equals(name, targetName, StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
                 var fullPath = BuildRemotePath(basePath, name);
                 var size = client.GetFileSize(fullPath);
                 var modifiedUtc = client.GetModifiedTime(fullPath).ToUniversalTime();
 
-                if (modifiedUtc >= cutoff.UtcDateTime)
+                if (hasTarget || modifiedUtc >= cutoff.UtcDateTime)
                 {
                     files.Add((name, size, modifiedUtc));
                 }
             }
 
             _logger.LogInformation("FTP files matched: {Count}", files.Count);
-
-            // Если событие содержит конкретный файл — обрабатываем только его.
-            if (evt.Payload.TryGetValue("fileName", out var targetName) && !string.IsNullOrWhiteSpace(targetName))
+            if (files.Count == 0)
             {
-                files = files.Where(f => string.Equals(f.Name, targetName, StringComparison.OrdinalIgnoreCase)).ToList();
+                var available = string.Join(", ", names);
+                _logger.LogInformation("FTP files available in {Path}: {Names}", basePath, available);
+            }
+
+            if (hasTarget)
+            {
                 _logger.LogInformation("FTP scan filtered by fileName. Target={Name} matched={Count}", targetName, files.Count);
             }
 
@@ -158,7 +162,6 @@ public sealed class FtpScanHandler : IStepHandler
 
                 var isDuplicate = await _stateStore.IsProcessedAsync(hash, ct);
                 var dedupMode = _settings.FtpDetection.Deduplication.Mode?.Trim().ToLowerInvariant() ?? "skip";
-                var hasTarget = evt.Payload.TryGetValue("fileName", out var targetName2) && !string.IsNullOrWhiteSpace(targetName2);
                 if (isDuplicate)
                 {
                     if (dedupMode == "emit" && hasTarget)
@@ -176,24 +179,29 @@ public sealed class FtpScanHandler : IStepHandler
                 var s3Key = $"{_paths.RawPrefix}{fileId.Value}.csv";
                 await _storage.PutAsync(s3Key, ms, ct);
 
-                var payload = new Dictionary<string, string>
+                var payload = new Dictionary<string, string>(evt.Payload)
                 {
                     ["fileId"] = fileId.Value,
                     ["s3Path"] = s3Key,
                     ["fileName"] = file.Name,
-                    ["isDuplicate"] = isDuplicate ? "true" : "false"
+                    ["isDuplicate"] = isDuplicate ? "true" : "false",
+                    ["Process"] = definition.Tag
                 };
 
-                // Технические события — просто лог/диагностика. Их можно публиковать после
-                // каждого шага, но они не нужны для работы цепочки. Поэтому здесь публикуется
-                // только переход к следующему шагу, чтобы не засорять шину.
-                await _bus.PublishAsync(new PipelineEvent(TopicTag.From(_definition.GetStep(StepName).TopicTag), evt.CorrelationId, payload), ct);
+                await _bus.PublishAsync(new PipelineEvent(TopicTag.From(step.TopicTag), evt.CorrelationId, payload), ct);
                 if (!isDuplicate)
                 {
                     await _stateStore.MarkProcessedAsync(fileId.Value, ct);
                 }
 
-                _logger.LogInformation("File processed: {Name} s3={S3} duplicate={Duplicate}", file.Name, s3Key, isDuplicate);
+                _logger.LogInformation("File processed: {Name} s3={S3} duplicate={Duplicate} tag={Tag}", file.Name, s3Key, isDuplicate, definition.Tag);
+            }
+
+            _logger.LogInformation("������=finished");
+
+            if (_registry.IsLastStepByInputTopic(definition, StepNameConst, evt.Topic.Value))
+            {
+                _logger.LogInformation("������� ��������");
             }
         }
         catch (Exception ex)
@@ -202,12 +210,20 @@ public sealed class FtpScanHandler : IStepHandler
         }
     }
 
-    /// <summary>
-    /// Создать FTP клиента с параметрами подключения.
-    /// </summary>
-    /// <summary>
-    /// Создать FTP клиента с параметрами подключения.
-    /// </summary>
+    private IReadOnlyList<TopicTag> ResolveTopics()
+    {
+        var topics = new List<TopicTag>();
+        foreach (var definition in _registry.GetAll())
+        {
+            var inputTopics = _registry.GetInputTopics(definition, StepNameConst);
+            foreach (var input in inputTopics)
+            {
+                topics.Add(TopicTag.From(input));
+            }
+        }
+
+        return topics;
+    }
     private static FtpClient CreateFtpClient(string host, int port, string user, string password, bool useSsl, FtpClientSettings clientSettings)
     {
         var client = new FtpClient(host)
@@ -237,10 +253,6 @@ public sealed class FtpScanHandler : IStepHandler
 
         return client;
     }
-
-    /// <summary>
-    /// Применить параметры подключения из шага.
-    /// </summary>
     private static void ApplyFtpOverrides(PipelineStep step, ref string host, ref int port)
     {
         var hostRaw = GetParam(step, "host");
@@ -273,27 +285,15 @@ public sealed class FtpScanHandler : IStepHandler
             port = parsedPort;
         }
     }
-
-    /// <summary>
-    /// Получить параметр шага.
-    /// </summary>
     private static string? GetParam(PipelineStep step, string key)
     {
         return step.GetParameter(key);
     }
-
-    /// <summary>
-    /// Получить числовой параметр шага.
-    /// </summary>
     private static int? GetIntParam(PipelineStep step, string key)
     {
         var raw = GetParam(step, key);
         return int.TryParse(raw, out var value) ? value : null;
     }
-
-    /// <summary>
-    /// Построить путь на FTP с учётом базового каталога.
-    /// </summary>
     private static string BuildRemotePath(string basePath, string name)
     {
         var path = basePath?.Trim() ?? string.Empty;
@@ -310,23 +310,21 @@ public sealed class FtpScanHandler : IStepHandler
 
         return $"{path}{name.TrimStart('/')}";
     }
-
-    /// <summary>
-    /// Посчитать SHA-256 от содержимого потока.
-    /// </summary>
     private static string ComputeSha256(Stream stream)
     {
         using var sha = SHA256.Create();
         var hash = sha.ComputeHash(stream);
         return Convert.ToHexString(hash).ToLowerInvariant();
     }
-
-    /// <summary>
-    /// Преобразовать маску вида *.csv в регулярное выражение.
-    /// </summary>
     private static Regex WildcardToRegex(string pattern)
     {
         var escaped = Regex.Escape(pattern).Replace("\\*", ".*").Replace("\\?", ".");
         return new Regex($"^{escaped}$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
     }
 }
+
+
+
+
+
+

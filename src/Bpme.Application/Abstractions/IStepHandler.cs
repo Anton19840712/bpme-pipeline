@@ -17,3 +17,25 @@ public interface IStepHandler
     /// </summary>
     Task HandleAsync(PipelineEvent evt, CancellationToken ct);
 }
+
+/// <summary>
+/// Контракт шага с несколькими темами входа.
+/// </summary>
+public interface IMultiTopicStepHandler
+{
+    /// <summary>
+    /// Темы, на которые подписан шаг.
+    /// </summary>
+    IReadOnlyList<TopicTag> Topics { get; }
+}
+
+/// <summary>
+/// Контракт для имени шага.
+/// </summary>
+public interface IStepNameProvider
+{
+    /// <summary>
+    /// Имя шага, которое используется в pipeline JSON.
+    /// </summary>
+    string StepName { get; }
+}

@@ -1,0 +1,21 @@
+{
+  "tag": "process-2",
+  "enabled": true,
+  "steps": [
+    {
+      "topicTag": "process-2.period",
+      "name": "periodicallyTrigger",
+      "parameters": [
+        { "key": "periodInSeconds", "value": "20" },
+        { "key": "maxRuns", "value": "3" }
+      ]
+    },
+    {
+      "topicTag": "process-2.log",
+      "name": "logMessage",
+      "parameters": [
+        { "key": "message", "value": "process-2: logMessage executed" }
+      ]
+    }
+  ]
+}

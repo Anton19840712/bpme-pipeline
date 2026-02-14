@@ -1,8 +1,9 @@
 {
-  "tag": "ftp-askro",
+  "tag": "process-1",
+  "enabled": true,
   "steps": [
     {
-      "topicTag": "ftp-askro.period",
+      "topicTag": "process-1.period",
       "name": "periodicallyTrigger",
       "parameters": [
         {
@@ -12,7 +13,7 @@
       ]
     },
     {
-      "topicTag": "ftp-askro.period.scan",
+      "topicTag": "process-1.period.scan",
       "name": "ftpScan",
       "parameters": [
         {
@@ -42,7 +43,7 @@
       ]
     },
     {
-      "topicTag": "ftp-askro.period.scan.parsing",
+      "topicTag": "process-1.period.scan.parsing",
       "name": "parseCsvToJsonArray",
       "parameters": [
         {
@@ -64,14 +65,8 @@
       ]
     },
     {
-      "topicTag": "ftp-askro.period.scan.parsing.send",
-      "name": "postTo",
-      "parameters": [
-        {
-          "key": "destination",
-          "value": "http://127.0.0.1/api/directories?code=askro"
-        }
-      ]
+      "topicTag": "process-1.period.scan.parsing.log",
+      "name": "log"
     }
   ]
 }

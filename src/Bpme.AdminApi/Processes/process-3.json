@@ -1,0 +1,20 @@
+{
+  "tag": "process-3",
+  "enabled": false,
+  "steps": [
+    {
+      "topicTag": "process-3.period",
+      "name": "periodicallyTrigger",
+      "parameters": [
+        { "key": "periodInSeconds", "value": "15" }
+      ]
+    },
+    {
+      "topicTag": "process-3.log",
+      "name": "logMessage",
+      "parameters": [
+        { "key": "message", "value": "process-3: logMessage executed" }
+      ]
+    }
+  ]
+}

@@ -16,6 +16,8 @@ public sealed class RabbitMqEventBus : IEventBus, IDisposable
     private readonly IModel _channel;
     private readonly string _exchange;
     private readonly string _queuePrefix;
+    private readonly string _host;
+    private readonly int _port;
     private readonly ILogger<RabbitMqEventBus> _logger;
 
     /// <summary>
@@ -33,6 +35,8 @@ public sealed class RabbitMqEventBus : IEventBus, IDisposable
     {
         _exchange = exchange;
         _queuePrefix = queuePrefix;
+        _host = host;
+        _port = port;
         _logger = logger;
         var factory = new ConnectionFactory
         {
@@ -59,7 +63,12 @@ public sealed class RabbitMqEventBus : IEventBus, IDisposable
         _channel.QueueDeclare(queue, durable: true, exclusive: false, autoDelete: false);
         _channel.QueueBind(queue, _exchange, routingKey: topic.Value);
 
-        _logger.LogInformation("Subscribed to {Topic} with queue {Queue}", topic.Value, queue);
+        _logger.LogInformation(
+            "subscribed topic={Topic} queue={Queue} host={Host}:{Port}",
+            topic.Value,
+            queue,
+            _host,
+            _port);
 
         var consumer = new AsyncEventingBasicConsumer(_channel);
         consumer.Received += async (_, ea) =>
@@ -70,9 +79,23 @@ public sealed class RabbitMqEventBus : IEventBus, IDisposable
                 var evt = JsonSerializer.Deserialize<PipelineEvent>(json);
                 if (evt != null)
                 {
-                    using (_logger.BeginScope(new Dictionary<string, object> { ["correlationId"] = evt.CorrelationId }))
+                    var tag = evt.Payload.TryGetValue("pipelineTag", out var pipelineTag) ? pipelineTag : "unknown";
+                    var iteration = evt.Payload.TryGetValue("iteration", out var iter) ? iter : "-";
+                    using (_logger.BeginScope(new Dictionary<string, object>
                     {
-                        _logger.LogInformation("Event received: {RoutingKey} size={Size}", ea.RoutingKey, ea.Body.Length);
+                        ["correlationId"] = evt.CorrelationId,
+                        ["Process"] = tag,
+                        ["Step"] = "bus",
+                        ["Iteration"] = iteration
+                    }))
+                    {
+                        _logger.LogInformation(
+                            "event received. queue={Queue} routingKey={RoutingKey} host={Host}:{Port} size={Size}",
+                            queue,
+                            ea.RoutingKey,
+                            _host,
+                            _port,
+                            ea.Body.Length);
                         await handler(evt, CancellationToken.None);
                     }
                 }
@@ -105,9 +128,23 @@ public sealed class RabbitMqEventBus : IEventBus, IDisposable
         props.Persistent = true;
 
         _channel.BasicPublish(_exchange, routingKey: evt.Topic.Value, basicProperties: props, body: body);
-        using (_logger.BeginScope(new Dictionary<string, object> { ["correlationId"] = evt.CorrelationId }))
+        var tag = evt.Payload.TryGetValue("pipelineTag", out var pipelineTag) ? pipelineTag : "unknown";
+        var iteration = evt.Payload.TryGetValue("iteration", out var iter) ? iter : "-";
+        using (_logger.BeginScope(new Dictionary<string, object>
         {
-            _logger.LogInformation("Event published: {Topic} payloadKeys={Keys}", evt.Topic.Value, string.Join(",", evt.Payload.Keys));
+            ["correlationId"] = evt.CorrelationId,
+            ["Process"] = tag,
+            ["Step"] = "bus",
+            ["Iteration"] = iteration
+        }))
+        {
+            _logger.LogInformation(
+                "event published. exchange={Exchange} routingKey={RoutingKey} host={Host}:{Port} payloadKeys={Keys}",
+                _exchange,
+                evt.Topic.Value,
+                _host,
+                _port,
+                string.Join(",", evt.Payload.Keys));
         }
         return Task.CompletedTask;
     }
@@ -122,3 +159,5 @@ public sealed class RabbitMqEventBus : IEventBus, IDisposable
         _logger.LogInformation("RabbitMQ disposed");
     }
 }
+
+

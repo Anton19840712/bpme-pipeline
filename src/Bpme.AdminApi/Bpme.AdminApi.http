@@ -1,6 +1,0 @@
-@Bpme.AdminApi_HostAddress = http://localhost:5228
-
-GET {{Bpme.AdminApi_HostAddress}}/weatherforecast/
-Accept: application/json
-
-###

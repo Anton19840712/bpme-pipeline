@@ -1,7 +1,6 @@
 ﻿using Bpme.Application.Abstractions;
 using Bpme.Application.Pipeline;
 using Bpme.Application.Settings;
-using Logging;
 using Bpme.Domain.Abstractions;
 using Bpme.Infrastructure.Bus;
 using Bpme.Infrastructure.Config;
@@ -11,8 +10,9 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Serilog;
 
-namespace Bpme.ConsumerApp;
+namespace Consumer;
 
 /// <summary>
 /// Точка входа консюмера.
@@ -24,16 +24,7 @@ public sealed class Program
     /// </summary>
     public static async Task Main(string[] args)
     {
-        Console.Title = "bpme-consumer";
-        var config = new ConfigurationBuilder()
-            .SetBasePath(AppContext.BaseDirectory)
-            .AddJsonFile("appsettings.json", optional: false, reloadOnChange: false)
-            .Build();
-        var logPath = config["Logging:FilePath"] ?? "bpme.log";
-        if (!Path.IsPathRooted(logPath))
-        {
-            logPath = Path.Combine(Directory.GetCurrentDirectory(), logPath);
-        }
+        Console.Title = "Consumer | bpme.consumer";
 
         using var host = Host.CreateDefaultBuilder(args)
             .ConfigureAppConfiguration((_, config) =>
@@ -41,17 +32,38 @@ public sealed class Program
                 config.SetBasePath(AppContext.BaseDirectory);
                 config.AddJsonFile("appsettings.json", optional: false, reloadOnChange: false);
             })
-            .ConfigureLogging(logging =>
+            .UseSerilog((ctx, _, log) =>
             {
-                logging.ClearProviders();
-                logging.AddConsole();
-                logging.AddProvider(new FileLoggerProvider(logPath, LogLevel.Information));
+                var logDir = ctx.Configuration["Logging:Directory"] ?? "Logs";
+                var defaultName = ctx.Configuration["Logging:FilePath"] ?? "bpme.log";
+                var baseDir = ctx.HostingEnvironment.ContentRootPath;
+                var resolvedDir = Path.IsPathRooted(logDir) ? logDir : Path.Combine(baseDir, logDir);
+                Directory.CreateDirectory(resolvedDir);
+
+                log.MinimumLevel.Information()
+                    .Enrich.WithProperty("Process", "app")
+                    .Enrich.WithProperty("Step", "system")
+                    .Enrich.WithProperty("Iteration", "0")
+                    .Enrich.FromLogContext()
+                    .WriteTo.Console(outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] [{Process}][{Iteration}][{Step}]: {Message:lj}{NewLine}{Exception}")
+                    .WriteTo.Map(
+                        "Process",
+                        "app",
+                        (tag, wt) =>
+                        {
+                            var fileName = string.Equals(tag, "app", StringComparison.OrdinalIgnoreCase)
+                                ? defaultName
+                                : $"{tag}.log";
+                            var path = Path.Combine(resolvedDir, fileName);
+                            wt.File(path, outputTemplate: "{Timestamp:O} [{Level}] {SourceContext} {Message:lj}{NewLine}{Exception}", shared: true);
+                        });
             })
             .ConfigureServices(services =>
             {
                 services.AddSingleton<ISettingsProvider, AppSettingsProvider>();
                 services.AddSingleton(sp => sp.GetRequiredService<ISettingsProvider>().Load());
                 services.AddSingleton<IPipelineDefinitionProvider, JsonPipelineDefinitionProvider>();
+                services.AddSingleton<IPipelineDefinitionRegistry, PipelineDefinitionRegistry>();
 
                 services.AddSingleton<IEventBus>(sp =>
                 {
@@ -83,12 +95,12 @@ public sealed class Program
 
         var logger = host.Services.GetRequiredService<ILogger<Program>>();
         var orchestrator = host.Services.GetRequiredService<PipelineOrchestrator>();
-        var settings = host.Services.GetRequiredService<PipelineSettings>();
-
-        logger.LogInformation("Consumer started. Log file path: {Path}", logPath);
+        logger.LogInformation("Consumer started.");
 
         orchestrator.RegisterHandlers();
 
         await Task.Delay(Timeout.Infinite);
     }
 }
+
+

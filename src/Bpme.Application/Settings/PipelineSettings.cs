@@ -1,6 +1,4 @@
-﻿using System.Collections.Generic;
-
-namespace Bpme.Application.Settings;
+﻿namespace Bpme.Application.Settings;
 
 /// <summary>
 /// Корневые настройки конвейера.
@@ -19,7 +17,6 @@ public sealed record PipelineSettings(
     PipelineDefinitionSettings PipelineDefinition,
     AdminApiSettings AdminApi,
     LoggingSettings Logging,
-    ControlSettings? Control = null,
     DevSettings? Dev = null,
     DeploySettings? Deploy = null
 );
@@ -34,7 +31,7 @@ public sealed record SinkSettings(
     string Level,
     string Format,
     string Output,
-    bool EnableLogStep
+    bool LogJson
 );
 
 /// <summary>
@@ -65,8 +62,30 @@ public sealed record FtpDetectionSettings(
     int NotOlderThanSeconds,
     int StableForSeconds,
     StateStoreSettings StateStore,
-    DeduplicationSettings Deduplication
+    DeduplicationSettings Deduplication,
+    TriggerMode TriggerMode = TriggerMode.Both
 );
+
+/// <summary>
+/// Режимы запуска процессов.
+/// </summary>
+public enum TriggerMode
+{
+    /// <summary>
+    /// Разрешен только фоновый запуск.
+    /// </summary>
+    Background = 0,
+
+    /// <summary>
+    /// Разрешен только ручной запуск.
+    /// </summary>
+    Manual = 1,
+
+    /// <summary>
+    /// Разрешены оба режима.
+    /// </summary>
+    Both = 2
+}
 
 /// <summary>
 /// Настройки подключения к FTP.
@@ -126,7 +145,8 @@ public sealed record AdminApiSettings(
 /// Настройки логирования.
 /// </summary>
 public sealed record LoggingSettings(
-    string FilePath
+    string Directory,
+    string? FilePath = null
 );
 
 /// <summary>
@@ -158,7 +178,8 @@ public sealed record PipelineTopicsSettings(
 /// Настройки определения пайплайна через JSON.
 /// </summary>
 public sealed record PipelineDefinitionSettings(
-    string FileName
+    string? FileName = null,
+    IReadOnlyList<string>? FileNames = null
 );
 
 /// <summary>
@@ -167,13 +188,6 @@ public sealed record PipelineDefinitionSettings(
 public sealed record StoragePathsSettings(
     string RawPrefix,
     string ParsedPrefix
-);
-
-/// <summary>
-/// Настройки управления приложением.
-/// </summary>
-public sealed record ControlSettings(
-    string PauseFilePath
 );
 
 /// <summary>

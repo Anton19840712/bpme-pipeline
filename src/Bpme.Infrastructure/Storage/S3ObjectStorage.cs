@@ -85,7 +85,10 @@ public sealed class S3ObjectStorage : IObjectStorage
             };
 
             var response = await _client.ListObjectsV2Async(request, ct);
-            result.AddRange(response.S3Objects.Select(o => o.Key));
+            if (response.S3Objects != null)
+            {
+                result.AddRange(response.S3Objects.Select(o => o.Key));
+            }
             token = response.IsTruncated == true ? response.NextContinuationToken : null;
         }
         while (token != null);

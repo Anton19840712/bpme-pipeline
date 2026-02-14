@@ -1,0 +1,22 @@
+{
+  "tag": "process-1",
+  "enabled": true,
+  "steps": [
+    {
+      "topicTag": "process-1.period",
+      "name": "periodicallyTrigger"
+    },
+    {
+      "topicTag": "process-1.period.scan",
+      "name": "ftpScan"
+    },
+    {
+      "topicTag": "process-1.period.scan.parsing",
+      "name": "parseCsvToJsonArray"
+    },
+    {
+      "topicTag": "process-1.period.scan.parsing.log",
+      "name": "log"
+    }
+  ]
+}

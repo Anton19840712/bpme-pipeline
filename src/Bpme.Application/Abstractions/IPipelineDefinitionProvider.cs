@@ -8,7 +8,7 @@ namespace Bpme.Application.Abstractions;
 public interface IPipelineDefinitionProvider
 {
     /// <summary>
-    /// Получить определение пайплайна.
+    /// Получить определения пайплайнов.
     /// </summary>
-    PipelineDefinition GetDefinition();
+    IReadOnlyList<PipelineDefinition> GetDefinitions();
 }
