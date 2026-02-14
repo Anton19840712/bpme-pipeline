@@ -1,5 +1,5 @@
-using Bpme.Application.Pipeline;
 using Bpme.Application.Abstractions;
+using Bpme.Application.Pipeline;
 using Bpme.Domain.Abstractions;
 using Bpme.Domain.Model;
 
@@ -7,6 +7,9 @@ namespace Bpme.AdminApi;
 
 public sealed class ProcessTriggerService : IProcessTriggerService
 {
+    private static readonly object SeparatorSync = new();
+    private static string? _lastProcessTag;
+
     private readonly IEventBus _eventBus;
     private readonly IPipelineDefinitionRegistry _registry;
     private readonly ProcessIterationStore _iterations;
@@ -27,10 +30,21 @@ public sealed class ProcessTriggerService : IProcessTriggerService
     public async Task PublishTriggerAsync(
         PipelineDefinition definition,
         string triggerStepName,
+        string launchMode,
         IReadOnlyDictionary<string, string>? payload = null,
         CancellationToken ct = default)
     {
         var iteration = _iterations.Next(definition.Tag);
+        var processChanged = false;
+        lock (SeparatorSync)
+        {
+            if (!string.Equals(_lastProcessTag, definition.Tag, StringComparison.OrdinalIgnoreCase))
+            {
+                processChanged = _lastProcessTag is not null;
+                _lastProcessTag = definition.Tag;
+            }
+        }
+
         using var scope = _logger.BeginScope(new Dictionary<string, object>
         {
             ["Process"] = definition.Tag,
@@ -38,9 +52,10 @@ public sealed class ProcessTriggerService : IProcessTriggerService
             ["Iteration"] = iteration.ToString()
         });
 
-        if (iteration > 1)
+        if (processChanged || iteration > 0)
         {
-            _logger.LogInformation(" ");
+            Console.WriteLine();
+            if (processChanged) Console.WriteLine();
         }
 
         var topic = _registry.GetFirstStep(definition).TopicTag;
@@ -48,11 +63,12 @@ public sealed class ProcessTriggerService : IProcessTriggerService
             ?? new Dictionary<string, string>();
         eventPayload["pipelineTag"] = definition.Tag;
         eventPayload["iteration"] = iteration.ToString();
+        eventPayload["launchMode"] = launchMode;
 
         var evt = new PipelineEvent(TopicTag.From(topic), Guid.NewGuid().ToString("N"), eventPayload);
         await _eventBus.PublishAsync(evt, ct);
 
-        _logger.LogInformation("процесс начался");
+        _logger.LogInformation("process started. launchMode={LaunchMode}", launchMode);
         _logger.LogInformation("trigger published. topic={Topic}", topic);
     }
 }

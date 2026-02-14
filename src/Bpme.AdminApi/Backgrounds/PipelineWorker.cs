@@ -4,9 +4,6 @@ using Bpme.Application.Settings;
 
 namespace Bpme.AdminApi.Backgrounds;
 
-/// <summary>
-/// Фоновый воркер: регистрирует шаги и запускает процессы по расписанию.
-/// </summary>
 public sealed class PipelineWorker : BackgroundService
 {
     private readonly ILogger<PipelineWorker> _logger;
@@ -66,7 +63,7 @@ public sealed class PipelineWorker : BackgroundService
         }
 
         _logger.LogInformation("Background scheduling enabled. DefaultPeriod={Seconds}s", defaultPeriodSeconds);
-        var schedules = new Dictionary<string, (int Period, DateTimeOffset NextRun, int MaxRuns, int Runs)>();
+        var schedules = new Dictionary<string, (int Period, DateTimeOffset NextRun, int MaxRuns, int Runs, bool LimitLogged)>();
         foreach (var definition in scheduledDefinitions)
         {
             var triggerStep = _registry.GetFirstStep(definition);
@@ -84,7 +81,7 @@ public sealed class PipelineWorker : BackgroundService
                 maxRuns = parsedMaxRuns;
             }
 
-            schedules[definition.Tag] = (period, DateTimeOffset.UtcNow, maxRuns, 0);
+            schedules[definition.Tag] = (period, DateTimeOffset.UtcNow, maxRuns, 0, false);
         }
 
         while (!stoppingToken.IsCancellationRequested)
@@ -100,14 +97,32 @@ public sealed class PipelineWorker : BackgroundService
 
                 if (schedule.MaxRuns > 0 && schedule.Runs >= schedule.MaxRuns)
                 {
+                    if (!schedule.LimitLogged)
+                    {
+                        var finalIteration = Math.Max(0, schedule.Runs - 1);
+                        using var limitScope = _logger.BeginScope(new Dictionary<string, object>
+                        {
+                            ["Process"] = definition.Tag,
+                            ["Step"] = "periodicTrigger",
+                            ["Iteration"] = finalIteration.ToString()
+                        });
+                        _logger.LogInformation(
+                            "process finished. reason=maxRunsReached runs={Runs} maxRuns={MaxRuns}",
+                            schedule.Runs,
+                            schedule.MaxRuns);
+                        schedules[definition.Tag] = (schedule.Period, schedule.NextRun, schedule.MaxRuns, schedule.Runs, true);
+                    }
+
                     continue;
                 }
 
-                await _triggerService.PublishTriggerAsync(definition, "periodicTrigger", ct: stoppingToken);
+                var launchMode = schedule.Runs == 0 ? "early" : "runtime";
+                await _triggerService.PublishTriggerAsync(definition, "periodicTrigger", launchMode, ct: stoppingToken);
                 using var scope = _logger.BeginScope(new Dictionary<string, object>
                 {
                     ["Process"] = definition.Tag,
-                    ["Step"] = "periodicTrigger"
+                    ["Step"] = "periodicTrigger",
+                    ["Iteration"] = schedule.Runs.ToString()
                 });
                 _logger.LogInformation("trigger period={Period}", schedule.Period);
 
@@ -115,7 +130,8 @@ public sealed class PipelineWorker : BackgroundService
                     schedule.Period,
                     now.AddSeconds(schedule.Period),
                     schedule.MaxRuns,
-                    schedule.Runs + 1);
+                    schedule.Runs + 1,
+                    false);
             }
 
             await Task.Delay(TimeSpan.FromSeconds(1), stoppingToken);

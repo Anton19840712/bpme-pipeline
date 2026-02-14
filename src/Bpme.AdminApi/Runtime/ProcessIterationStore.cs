@@ -14,7 +14,7 @@ public sealed class ProcessIterationStore
     /// </summary>
     public int Next(string processTag)
     {
-        return _iterations.AddOrUpdate(processTag, 1, (_, current) => current + 1);
+        return _iterations.AddOrUpdate(processTag, 0, (_, current) => current + 1);
     }
 }
 

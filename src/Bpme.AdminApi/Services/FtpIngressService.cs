@@ -61,7 +61,7 @@ public sealed class FtpIngressService
             {
                 ["fileName"] = fileName
             };
-            await _triggerService.PublishTriggerAsync(definition, "manualTrigger", payload, ct);
+            await _triggerService.PublishTriggerAsync(definition, "manualTrigger", "runtime", payload, ct);
         }
 
         return new FtpUploadResult(fileName, definitions.Select(x => x.Tag).ToArray());
