@@ -1,0 +1,109 @@
+Как добавить новый процесс
+
+1) Добавить полный процесс в AdminApi
+
+Создай файл:
+src/Bpme.AdminApi/Processes/process-4.json
+
+Пример:
+{
+  "tag": "process-4",
+  "enabled": true,
+  "steps": [
+    {
+      "topicTag": "process-4.period",
+      "name": "periodicallyTrigger",
+      "parameters": [
+        { "key": "periodInSeconds", "value": "30" },
+        { "key": "maxRuns", "value": "5" }
+      ]
+    },
+    {
+      "topicTag": "process-4.log",
+      "name": "logMessage",
+      "parameters": [
+        { "key": "message", "value": "process-4: started by periodic trigger" }
+      ]
+    }
+  ]
+}
+
+Добавь файл в:
+src/Bpme.AdminApi/appsettings.json -> PipelineDefinition:Files
+
+Это те процессы, которые будут отрабатывать параллельно.
+Можете указать один, можете несколько: никто вас не ограничивает. И ничто...
+
+Пример:
+"PipelineDefinition": {
+  "Files": [
+    "Processes/process-1.json",
+    "Processes/process-2.json",
+    "Processes/process-3.json",
+    "Processes/process-4.json"
+  ]
+}
+
+2) Добавить усеченную версию процесса в Consumer
+
+Создай файл:
+src/Consumer/Processes/process-4.json
+
+В Consumer оставляй только шаги, которые он реально умеет обрабатывать.
+Консумеру тоже в этом прототипном примере должен настраиваться нужным образом.
+В дальнейшем я планирую сделать конфигурационный сервис и разбить BPME на микросервисы. В том числе на микросервисы, клиенты и конфигурационный сервис в частности.
+Потому что уже напрашивается. Но этим буду заниматься не я, а Фатих.
+
+Пример:
+{
+  "tag": "process-4",
+  "enabled": true,
+  "steps": [
+    {
+      "topicTag": "process-4.log",
+      "name": "logMessage",
+      "parameters": [
+        { "key": "message", "value": "process-4: consumed log event" }
+      ]
+    }
+  ]
+}
+
+Добавь файл в:
+src/Consumer/appsettings.json -> PipelineDefinition:Files
+
+Пример:
+"PipelineDefinition": {
+  "Files": [
+    "Processes/process-1.json",
+    "Processes/process-4.json"
+  ]
+}
+
+Это скорее только для меня feature в процессе отладки логики и тестирования: тригернуть интересущий нас процесс из runtime через swagger.
+
+3) Поведение TriggerMode
+
+Manual:
+- только ручные триггеры
+
+Background:
+- только фоновые (периодические) триггеры
+
+Both:
+- и ручные, и фоновые триггеры
+
+4) Важные замечания
+
+- topicTag должен быть уникален.
+- Первая итерация процесса = 0.
+- launchMode=early для первого фонового запуска.
+- launchMode=runtime для следующих фоновых запусков и для ручного запуска.
+
+5) Финальная проверка
+
+1. Перезапусти Bpme.AdminApi.
+2. Перезапусти Consumer.
+3. Проверь логи:
+- Pipeline definition loaded. Tag=process-4
+- subscribed topic=process-4.log (в Consumer)
